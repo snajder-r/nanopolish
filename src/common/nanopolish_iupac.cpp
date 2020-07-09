@@ -39,6 +39,9 @@ bool IUPAC::isAmbiguous(char c)
         case 'D':
         case 'B':
         case 'N':
+        // Our methylation symbols
+        case 'X':
+        case 'Z':
             return true;
         default:
             return false;
@@ -86,6 +89,11 @@ std::string IUPAC::getPossibleSymbols(char c)
             return "CGT";
         case 'N':
             return "ACGT";
+        case 'Z':
+            return "Z";
+        case 'X':
+            return "X";
+
         default:
             return "";
     }

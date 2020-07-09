@@ -610,7 +610,7 @@ TrainingResult retrain_model_from_events(const PoreModel& current_model,
     }
     assert(gen_kmer == std::string(k, 'A'));
     assert(all_kmers.front() == std::string(k, 'A'));
-    assert(all_kmers.back() == std::string(k, 'T'));
+    assert(all_kmers.back() == std::string(k, mtrain_alphabet->base(mtrain_alphabet->size()-1))); //std::string(k, 'Z'));
 
     // Update means for each kmer
     #pragma omp parallel for
@@ -626,7 +626,7 @@ TrainingResult retrain_model_from_events(const PoreModel& current_model,
             }
         }
 
-        bool is_m_kmer = kmer.find('M') != std::string::npos;
+        bool is_m_kmer = kmer.find('Z') != std::string::npos || kmer.find('X') != std::string::npos;
         bool update_kmer = opt::training_target == TT_ALL_KMERS ||
                            (is_m_kmer && opt::training_target == TT_METHYLATED_KMERS) ||
                            (!is_m_kmer && opt::training_target == TT_UNMETHYLATED_KMERS);
@@ -672,6 +672,7 @@ TrainingResult retrain_model_from_events(const PoreModel& current_model,
 
             #pragma omp critical
             result.trained_model.states[ki] = trained_mixture.params[0];
+            trained=true;
 
 #if 0
             if (false && model_stdv()) {
