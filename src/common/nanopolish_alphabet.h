@@ -14,14 +14,36 @@
 #include <assert.h>
 #include <algorithm>
 #include "nanopolish_iupac.h"
+#include <iostream>
 
-#define METHYLATED_SYMBOL 'M'
+#define METHYLATED_C_SYMBOL 'Z'
+#define METHYLATED_A_SYMBOL 'X'
+#define METHYLATED_A_COMPLEMENT 'Q' // a T bound to a m6A
 
 struct RecognitionMatch
 {
     unsigned offset; // the matched position in the recognition site
     unsigned length; // the length of the match, 0 indicates no match
     bool covers_methylated_site; // does the match cover an M base?
+};
+
+class RecognitionMask
+{
+    public:
+        bool* mask; //whether base is in a recognition site
+        int* ri; //recognition site index of site starting here
+        RecognitionMatch* matches; // offeset, length and met status of site
+
+        RecognitionMask(size_t length){
+            ri = new int[length];
+            mask = new bool[length];
+            matches = new RecognitionMatch[length];
+        }
+        ~RecognitionMask(){
+            delete mask;
+            delete ri;
+            delete matches;
+        }
 };
 
 // Check whether a recognition site starts at position i of str
@@ -32,28 +54,39 @@ inline RecognitionMatch match_to_site(const std::string& str, size_t i, const ch
     match.offset = 0;
     match.covers_methylated_site = false;
 
-    // Case 1: str is a substring of recognition
-    const char* p = strstr(recognition, str.c_str());
-    if(i == 0 && p != NULL) {
-        match.offset = p - recognition;
-        match.length = str.length();
+    // Case 1: prefix of str is suffix of recognition
+    if(i == 0) {
+        for(int j = 0; j < rl; j++){
+            size_t cl = std::min(rl-j, str.length());
+            if(str.compare(0,cl,recognition,j,cl)==0){
+                match.offset = j;
+                match.length = cl;
+                break;
+            }
+        }
     } else {
         // Case 2: the suffix str[i..n] is a prefix of recognition
         size_t cl = std::min(rl, str.length() - i);
         if(str.compare(i, cl, recognition, cl) == 0) {
             match.offset = 0;
             match.length = cl;
-        }
+        }    
     }   
 
     //printf("Match site: %s %s %s %d %d\n", str.c_str(), str.substr(i).c_str(), recognition, match.offset, match.length);
     if(match.length > 0) {
         match.covers_methylated_site = 
-            str.substr(i, match.length).find_first_of(METHYLATED_SYMBOL) != std::string::npos;
+            str.substr(i, match.length).find_first_of(METHYLATED_C_SYMBOL) != std::string::npos;
+        match.covers_methylated_site = match.covers_methylated_site ||
+            str.substr(i, match.length).find_first_of(METHYLATED_A_SYMBOL) != std::string::npos;
+        match.covers_methylated_site = match.covers_methylated_site ||
+            str.substr(i, match.length).find_first_of(METHYLATED_A_COMPLEMENT) != std::string::npos;
+
     }
 
     return match;
 }
+
 
 // Abstract base class for alphabets
 class Alphabet
@@ -68,7 +101,7 @@ class Alphabet
 
         // support for methylated bases with recognition sequences
         virtual size_t num_recognition_sites() const = 0;
-        virtual size_t recognition_length() const = 0;
+        virtual size_t recognition_length(size_t i) const = 0;
         virtual const char* get_recognition_site(size_t i) const = 0;
         virtual const char* get_recognition_site_methylated(size_t i) const = 0;
         virtual const char* get_recognition_site_methylated_complement(size_t i) const = 0;
@@ -112,74 +145,90 @@ class Alphabet
             return n;
         }
 
+        inline RecognitionMask find_recognition_mask(const std::string& str, 
+                bool require_methylated, bool require_full_length) const
+        {
+            RecognitionMask ret(str.length());
+            int remainder_of_site = 0;
+            for(size_t i = 0; i < str.length(); i++) {
+                int recognition_index = -1;
+                RecognitionMatch match;
+
+                // Does this location (partially) match a methylated recognition site?
+                for(size_t j = 0; j < num_recognition_sites(); ++j) {
+                    match = match_to_site(str, i, get_recognition_site_methylated(j), recognition_length(j));
+                    if(match.length > 0 && (match.covers_methylated_site || !require_methylated) && 
+                            ((match.length == recognition_length(j)) || !require_full_length)) {
+                        recognition_index = j;
+                        remainder_of_site = match.length;
+                        break;
+                    }
+                }
+                ret.matches[i] = match;
+                ret.ri[i] = recognition_index;
+
+                ret.mask[i] = (remainder_of_site--) > 0;
+            }
+            
+            return ret;
+        }
+
         // reverse-complement a string
         // when the string contains methylated bases, the methylation
         // symbol transfered to the output strand in the appropriate position
         virtual std::string reverse_complement(const std::string& str) const
         {
             std::string out(str.length(), 'A');
+            RecognitionMask rmask = find_recognition_mask(str, true, false);
+
             size_t i = 0; // input
             int j = str.length() - 1; // output
-            while(i < str.length()) {
-                int recognition_index = -1;
-                RecognitionMatch match;
 
-                // Does this location (partially) match a methylated recognition site?
-                for(size_t j = 0; j < num_recognition_sites(); ++j) {
-                    match = match_to_site(str, i, get_recognition_site_methylated(j), recognition_length());
-                    if(match.length > 0 && match.covers_methylated_site) {
-                        recognition_index = j;
-                        break;
-                    }
-                }
-
+            while(i < str.length()){
                 // If this subsequence matched a methylated recognition site,
                 // copy the complement of the site to the output
-                if(recognition_index != -1) {
-                    for(size_t k = match.offset; k < match.offset + match.length; ++k) {
-                        out[j--] = get_recognition_site_methylated_complement(recognition_index)[k];
+                if(rmask.ri[i] != -1) {
+                    int im = i;
+                    for(size_t k = rmask.matches[im].offset; k < rmask.matches[im].offset + rmask.matches[im].length; ++k) {
+                        out[j--] = get_recognition_site_methylated_complement(rmask.ri[im])[k];
                         i += 1;
+                        if(i < str.length()){
+                           if(rmask.ri[i] != -1){
+                               // If the next index is ALSO the starting point of a recognition
+                               // site, use the new recognition site to fill in the rest of the
+                               // methylated complement. This resolves overlapping recognition sites
+                               // such as CGC (CG overlapping with GC)
+                               break;
+                           }
+                        }
                     }
                 } else {
                     // complement a single base
-                    assert(str[i] != METHYLATED_SYMBOL);
+                    assert(str[i] != METHYLATED_C_SYMBOL);
+                    assert(str[i] != METHYLATED_A_SYMBOL);
+                    assert(str[i] != METHYLATED_A_COMPLEMENT);
                     out[j--] = complement(str[i++]);
                 }
             }
+            //std::cout << str << std::endl;
+            //std::cout << out << std::endl;
             return out;
         }
 
         // return a new copy of the string with IUPAC ambiguity characters changed
         virtual std::string disambiguate(const std::string& str) const
         {
+            RecognitionMask rmask = find_recognition_mask(str, false, false);
             // create output and convert lower case to upper case
             std::string out(str);
             std::transform(out.begin(), out.end(), out.begin(), ::toupper);
 
-            size_t i = 0;
-            while(i < out.length()) {
-                size_t stride = 1;
-                bool is_recognition_site = false;
-
-                // Does this location (partially) match a methylated recognition site?
-                for(size_t j = 0; j < num_recognition_sites(); ++j) {
-
-                    RecognitionMatch match = match_to_site(out, i, get_recognition_site_methylated(j), recognition_length());
-                    if(match.length > 0) {
-                        stride = match.length; // skip to end of match
-                        is_recognition_site = true;
-                        break;
-                    }
-                }
-                
+            for(size_t i = 0; i < out.length(); i++) {
                 // disambiguate if not a recognition site
-                if(!is_recognition_site) {
+                if(!rmask.mask[i]){
                     assert(IUPAC::isValid(out[i]));
                     out[i] = IUPAC::getPossibleSymbols(out[i])[0];
-                    stride = 1;
                 }
-
-                i += stride;
             }
             return out;
         }
@@ -189,51 +238,62 @@ class Alphabet
         virtual std::string methylate(const std::string& str) const
         {
             std::string out(str);
+            RecognitionMask rmask = find_recognition_mask(str, false, true);
+
             size_t i = 0;
-            while(i < out.length()) {
-                size_t stride = 1;
-
-                // Does this location match a recognition site?
-                for(size_t j = 0; j < num_recognition_sites(); ++j) {
-
-                    RecognitionMatch match = match_to_site(str, i, get_recognition_site(j), recognition_length());
-                    // Require the recognition site to be completely matched
-                    if(match.length == recognition_length()) {
-                        // Replace by the methylated version
-                        out.replace(i, recognition_length(), get_recognition_site_methylated(j));
-                        stride = match.length; // skip to end of match
-                        break;
+            while(i < out.length()){
+                // If this subsequence matched a methylated recognition site,
+                if(rmask.ri[i]!=-1) {
+                    int im = i;
+                    for(size_t k = rmask.matches[im].offset; k < rmask.matches[im].offset + rmask.matches[im].length; ++k) {
+                        out[i] = get_recognition_site_methylated(rmask.ri[im])[k];
+                        i += 1;
+                        if(i < str.length()){
+                           if(rmask.ri[i] != -1){
+                               // If the next index is ALSO the starting point of a recognition
+                               // site, use the new recognition site to fill in the rest
+                               break;
+                           }
+                        }
                     }
+                    assert(i!=im); // that would be a length 0 match
+                }else{
+                    i++;
                 }
-
-                i += stride;
             }
+
             return out;
         }
+
 
         // Remove methylated bases according to the recognition site
         std::string unmethylate(const std::string& str) const
         {
             std::string out(str);
+            RecognitionMask rmask = find_recognition_mask(str, false, false);
+
             size_t i = 0;
-            while(i < out.length()) {
-                size_t stride = 1;
-
-                // Does this location (partially) match a methylated recognition site?
-                for(size_t j = 0; j < num_recognition_sites(); ++j) {
-
-                    RecognitionMatch match = match_to_site(str, i, get_recognition_site_methylated(j), recognition_length());
-                    if(match.length > 0) {
-
-                        // Replace by the unmethylated version
-                        out.replace(i, match.length, get_recognition_site(j) + match.offset, match.length);
-                        stride = match.length; // skip to end of match
-                        break;
+            while(i < out.length()){
+                // If this subsequence matched a methylated recognition site,
+                if(rmask.ri[i]!=-1) {
+                    int im = i;
+                    for(size_t k = rmask.matches[im].offset; k < rmask.matches[im].offset + rmask.matches[im].length; ++k) {
+                        out[i] = get_recognition_site(rmask.ri[im])[k];
+                        i += 1;
+                        if(i < str.length()){
+                           if(rmask.ri[i] != -1){
+                               // If the next index is ALSO the starting point of a recognition
+                               // site, use the new recognition site to fill in the rest
+                               break;
+                           }
+                        }
                     }
+                    assert(i!=im); // that would be a length 0 match
+                }else{
+                    i++;
                 }
-
-                i += stride;
             }
+
             return out;
         }
 
@@ -245,8 +305,8 @@ class Alphabet
         {
             RecognitionMatch match;
             for(size_t j = 0; j < num_recognition_sites(); ++j){
-                match = match_to_site(str, i, get_recognition_site(j), recognition_length());
-                if(match.length == recognition_length())
+                match = match_to_site(str, i, get_recognition_site(j), recognition_length(j));
+                if(match.length == recognition_length(j))
                     return true;
             }
             return false;
@@ -277,7 +337,7 @@ struct DNAAlphabet : public Alphabet
 
     // no methylation in this alphabet
     virtual size_t num_recognition_sites() const { return 0; }
-    virtual size_t recognition_length() const { return 0; }
+    virtual size_t recognition_length(size_t) const { return 0; }
     virtual const char* get_recognition_site(size_t) const { return NULL; }
     virtual const char* get_recognition_site_methylated(size_t) const { return NULL; }
     virtual const char* get_recognition_site_methylated_complement(size_t) const { 
@@ -304,7 +364,7 @@ struct UtoTRNAAlphabet : public Alphabet
 
     // no methylation in this alphabet
     virtual size_t num_recognition_sites() const { return 0; }
-    virtual size_t recognition_length() const { return 0; }
+    virtual size_t recognition_length(size_t) const { return 0; }
     virtual const char* get_recognition_site(size_t) const { return NULL; }
     virtual const char* get_recognition_site_methylated(size_t) const { return NULL; }
     virtual const char* get_recognition_site_methylated_complement(size_t) const { 
@@ -321,14 +381,14 @@ struct UtoTRNAAlphabet : public Alphabet
 
 #define METHYLATION_MEMBER_BOILERPLATE \
     static const uint32_t _num_recognition_sites; \
-    static const uint32_t _recognition_length; \
+    static const uint32_t _recognition_length[]; \
     static const char* _recognition_sites[]; \
     static const char* _recognition_sites_methylated[]; \
     static const char* _recognition_sites_methylated_complement[];
 
 #define METHYLATION_ACCESSOR_BOILERPLATE \
     virtual size_t num_recognition_sites() const { return _num_recognition_sites; } \
-    virtual size_t recognition_length() const { return _recognition_length; } \
+    virtual size_t recognition_length(size_t i) const { return _recognition_length[i]; } \
     virtual const char* get_recognition_site(size_t i) const { return _recognition_sites[i]; } \
     virtual const char* get_recognition_site_methylated(size_t i) const { return _recognition_sites_methylated[i]; } \
     virtual const char* get_recognition_site_methylated_complement(size_t i) const { \
@@ -339,6 +399,24 @@ struct UtoTRNAAlphabet : public Alphabet
 // methyl-cytosine in CG context
 // 
 struct MethylCpGAlphabet : public Alphabet
+{
+    // member variables, expanded by macrocs
+    BASIC_MEMBER_BOILERPLATE
+    METHYLATION_MEMBER_BOILERPLATE
+    
+    // member functions
+    BASIC_ACCESSOR_BOILERPLATE
+    METHYLATION_ACCESSOR_BOILERPLATE
+
+    // does this alphabet contain all of the nucleotides in bases?
+    virtual inline bool contains_all(const char *bases) const 
+    {
+        return strspn(bases, _base) == strlen(bases);
+    }
+};
+
+
+struct NOMEAlphabet : public Alphabet
 {
     // member variables, expanded by macrocs
     BASIC_MEMBER_BOILERPLATE
@@ -422,6 +500,7 @@ extern MethylGpCAlphabet gMethylGpCAlphabet;
 extern MethylDamAlphabet gMethylDamAlphabet;
 extern MethylDcmAlphabet gMethylDcmAlphabet;
 extern UtoTRNAAlphabet gUtoTRNAAlphabet;
+extern NOMEAlphabet gNOMEAlphabet;
 
 std::vector<const Alphabet*> get_alphabet_list();
 const Alphabet* best_alphabet(const char *bases);
