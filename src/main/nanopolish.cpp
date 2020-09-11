@@ -16,6 +16,7 @@
 #include "nanopolish_getmodel.h"
 #include "nanopolish_methyltrain.h"
 #include "nanopolish_call_methylation.h"
+#include "nanopolish_call_accessibility.h"
 #include "nanopolish_scorereads.h"
 #include "nanopolish_phase_reads.h"
 #include "nanopolish_vcf2fasta.h"
@@ -39,7 +40,8 @@ static std::map< std::string, std::function<int(int, char**)> > programs = {
     {"phase-reads", phase_reads_main} ,
     {"vcf2fasta",   vcf2fasta_main} ,
     {"polya",  polya_main} ,
-    {"call-methylation",  call_methylation_main}
+    {"call-methylation",  call_methylation_main} ,
+    {"call-accessibility",  call_accessibility_main}
 };
 
 int print_usage(int, char **)

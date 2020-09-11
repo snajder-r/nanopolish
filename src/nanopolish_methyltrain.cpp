@@ -376,7 +376,8 @@ void add_aligned_events(const ReadDB& read_db,
             return;
 
         // Update pore model based on alignment
-        std::string model_key = PoreModelSet::get_model_key(*sr.get_model(strand_idx, mtrain_alphabet->get_name()));
+        PoreModel model = *sr.get_model(strand_idx, mtrain_alphabet->get_name());
+        std::string model_key = PoreModelSet::get_model_key(model);
 
         //
         // Optional recalibration of shift/scale/drift and output of sequence likelihood
@@ -454,7 +455,7 @@ void add_aligned_events(const ReadDB& read_db,
                 sr.get_fully_scaled_level(alignment_output[i].event_idx, strand_idx) >= 1.0;
 
             if(use_for_training) {
-                StateTrainingData std(sr, ea, rank, prev_kmer, next_kmer);
+                StateTrainingData std(sr, model, ea, rank, prev_kmer, next_kmer);
                 #pragma omp critical(kmer)
                 {
                     event_count[rank]++;
