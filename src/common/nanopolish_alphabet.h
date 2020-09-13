@@ -146,8 +146,7 @@ class Alphabet
         }
 
         inline RecognitionMask find_recognition_mask(const std::string& str, 
-                const bool require_methylated, const bool require_full_length,
-                const bool methylated_recognition_pattern) const
+                bool require_methylated, bool require_full_length) const
         {
             RecognitionMask ret(str.length());
             int remainder_of_site = 0;
@@ -157,14 +156,7 @@ class Alphabet
 
                 // Does this location (partially) match a methylated recognition site?
                 for(size_t j = 0; j < num_recognition_sites(); ++j) {
-                    const char* recognition_pattern;
-                    if(methylated_recognition_pattern){
-                         recognition_pattern = get_recognition_site_methylated(j);
-                    }else{
-                         recognition_pattern = get_recognition_site(j); 
-                    }
-
-                    match = match_to_site(str, i, recognition_pattern, recognition_length(j));
+                    match = match_to_site(str, i, get_recognition_site_methylated(j), recognition_length(j));
                     if(match.length > 0 && (match.covers_methylated_site || !require_methylated) && 
                             ((match.length == recognition_length(j)) || !require_full_length)) {
                         recognition_index = j;
@@ -187,7 +179,7 @@ class Alphabet
         virtual std::string reverse_complement(const std::string& str) const
         {
             std::string out(str.length(), 'A');
-            RecognitionMask rmask = find_recognition_mask(str, true, false, true);
+            RecognitionMask rmask = find_recognition_mask(str, true, false);
 
             size_t i = 0; // input
             int j = str.length() - 1; // output
@@ -218,13 +210,15 @@ class Alphabet
                     out[j--] = complement(str[i++]);
                 }
             }
+            //std::cout << str << std::endl;
+            //std::cout << out << std::endl;
             return out;
         }
 
         // return a new copy of the string with IUPAC ambiguity characters changed
         virtual std::string disambiguate(const std::string& str) const
         {
-            RecognitionMask rmask = find_recognition_mask(str, false, false, true);
+            RecognitionMask rmask = find_recognition_mask(str, false, false);
             // create output and convert lower case to upper case
             std::string out(str);
             std::transform(out.begin(), out.end(), out.begin(), ::toupper);
@@ -244,10 +238,11 @@ class Alphabet
         virtual std::string methylate(const std::string& str) const
         {
             std::string out(str);
-            RecognitionMask rmask = find_recognition_mask(str, false, false, false);
+            RecognitionMask rmask = find_recognition_mask(str, false, true);
+
             size_t i = 0;
             while(i < out.length()){
-                // If this subsequence matched a recognition site,
+                // If this subsequence matched a methylated recognition site,
                 if(rmask.ri[i]!=-1) {
                     int im = i;
                     for(size_t k = rmask.matches[im].offset; k < rmask.matches[im].offset + rmask.matches[im].length; ++k) {
@@ -275,7 +270,7 @@ class Alphabet
         std::string unmethylate(const std::string& str) const
         {
             std::string out(str);
-            RecognitionMask rmask = find_recognition_mask(str, false, false, true);
+            RecognitionMask rmask = find_recognition_mask(str, false, false);
 
             size_t i = 0;
             while(i < out.length()){
