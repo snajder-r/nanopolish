@@ -245,6 +245,7 @@ class Alphabet
         {
             std::string out(str);
             RecognitionMask rmask = find_recognition_mask(str, false, false, false);
+
             size_t i = 0;
             while(i < out.length()){
                 // If this subsequence matched a recognition site,
