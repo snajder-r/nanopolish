@@ -73,6 +73,13 @@ struct StateSummary
     int num_stays;
 };
 
+struct Region
+{
+    std::string chromosome;
+    int start;
+    int end;
+};
+
 //
 const Alphabet* mtrain_alphabet = NULL;
 
@@ -115,6 +122,7 @@ static const char *METHYLTRAIN_USAGE_MESSAGE =
 "      --max-reads=NUM                  stop after processing NUM reads in each round\n"
 "      --progress                       print out a progress message\n"
 "      --stdv                           enable stdv modelling\n"
+"      --training-regions=FILE          bed file containing regions used for training\n"
 "      --max-events=NUM                 use NUM events for training (default: 1000)\n"
 "\nReport bugs to " PACKAGE_BUGREPORT "\n\n";
 
@@ -126,6 +134,7 @@ namespace opt
     static std::string bam_file;
     static std::string genome_file;
     static std::string models_fofn;
+    static std::string training_regions;
     static std::string region;
     static std::string out_suffix = ".trained";
     static std::string out_fofn = "trained.fofn";
@@ -166,7 +175,8 @@ enum { OPT_HELP = 1,
        OPT_P_BAD,
        OPT_P_BAD_SELF,
        OPT_MAX_READS,
-       OPT_MAX_EVENTS
+       OPT_MAX_EVENTS,
+       OPT_TRAINING_REGIONS
      };
 
 static const struct option longopts[] = {
@@ -195,6 +205,7 @@ static const struct option longopts[] = {
     { "rounds",             required_argument, NULL, OPT_NUM_ROUNDS },
     { "max-reads",          required_argument, NULL, OPT_MAX_READS },
     { "max-events",         required_argument, NULL, OPT_MAX_EVENTS },
+    { "training-regions",   required_argument, NULL, OPT_TRAINING_REGIONS },
     { NULL, 0, NULL, 0 }
 };
 
@@ -338,7 +349,8 @@ void add_aligned_events(const ReadDB& read_db,
                         size_t training_k,
                         size_t round,
                         ModelTrainingMap& training,
-                        std::unordered_map<uint32_t, int>& event_count)
+                        std::unordered_map<uint32_t, int>& event_count,
+                        const std::vector<Region>& training_regions)
 {
     // Load a squiggle read for the mapped read
     std::string read_name = bam_get_qname(record);
@@ -376,7 +388,8 @@ void add_aligned_events(const ReadDB& read_db,
             return;
 
         // Update pore model based on alignment
-        std::string model_key = PoreModelSet::get_model_key(*sr.get_model(strand_idx, mtrain_alphabet->get_name()));
+        PoreModel model = *sr.get_model(strand_idx, mtrain_alphabet->get_name());
+        std::string model_key = PoreModelSet::get_model_key(model);
 
         //
         // Optional recalibration of shift/scale/drift and output of sequence likelihood
@@ -453,6 +466,27 @@ void add_aligned_events(const ReadDB& read_db,
                 sr.get_duration( alignment_output[i].event_idx, strand_idx) >= opt::min_event_duration &&
                 sr.get_fully_scaled_level(alignment_output[i].event_idx, strand_idx) >= 1.0;
 
+
+            if(use_for_training && !training_regions.empty()) {
+                // If we limit to specific regions from a bed file, we now check whether this
+                // event is in any of the selected regions
+                bool is_in_regions = false;
+                for (auto it = std::begin(training_regions); it != std::end(training_regions); ++it) {
+                    Region r = *it;
+                    if (alignment_output[i].ref_name.compare(r.chromosome) == 0 &&
+                            alignment_output[i].ref_position >= r.start &&
+                            alignment_output[i].ref_position < r.end) {
+                        is_in_regions = true;
+                        break;
+                    }
+                    if (alignment_output[i].ref_name.compare(r.chromosome) == 0 && r.start > alignment_output[i].ref_position){
+                        //We are past that region, so no need to keep looking
+                        break;
+                    }
+                }
+                use_for_training = is_in_regions;
+            }
+
             if(use_for_training) {
                 StateTrainingData std(sr, ea, rank, prev_kmer, next_kmer);
                 #pragma omp critical(kmer)
@@ -504,6 +538,7 @@ void parse_methyltrain_options(int argc, char** argv)
             case OPT_P_BAD_SELF: arg >> g_p_bad_self; break;
             case OPT_MAX_READS: arg >> opt::max_reads; break;
             case OPT_MAX_EVENTS: arg >> opt::max_events; break;
+            case OPT_TRAINING_REGIONS: arg >> opt::training_regions; break;
             case OPT_HELP:
                 std::cout << METHYLTRAIN_USAGE_MESSAGE;
                 exit(EXIT_SUCCESS);
@@ -639,7 +674,7 @@ TrainingResult retrain_model_from_events(const PoreModel& current_model,
             // train a mixture model where a minority of k-mers aren't methylated
             ParamMixture mixture;
 
-            float incomplete_methylation_rate = 0.05f;
+            float incomplete_methylation_rate = 0.1f;
             std::string um_kmer = mtrain_alphabet->unmethylate(kmer);
             size_t um_ki = mtrain_alphabet->kmer_rank(um_kmer.c_str(), k);
 
@@ -723,7 +758,7 @@ void train_one_round(const ReadDB& read_db,
                      const std::string& kit_name,
                      const std::string& alphabet,
                      size_t k,
-                     size_t round)
+                     size_t round, const std::vector<Region>& training_regions)
 {
 
     // Get a copy of the models for each strand for this datatype
@@ -806,7 +841,7 @@ void train_one_round(const ReadDB& read_db,
                     add_aligned_events(read_db, fai, hdr, record, read_idx,
                                        clip_start, clip_end,
                                        kit_name, alphabet, k,
-                                       round, model_training_data, event_count);
+                                       round, model_training_data, event_count, training_regions);
                 }
             }
 
@@ -890,10 +925,34 @@ void write_models(const std::map<std::string, PoreModel>& models, int round)
     }
 }
 
-int methyltrain_main(int argc, char** argv)
-{
+// take from http://stackoverflow.com/a/236803/248823
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+
+int methyltrain_main(int argc, char** argv) {
     parse_methyltrain_options(argc, argv);
     omp_set_num_threads(opt::num_threads);
+
+    std::vector<Region> training_regions;
+    if (!opt::training_regions.empty()){
+        std::ifstream infile(opt::training_regions);
+        std::string line;
+        while (std::getline(infile, line)) {
+            std::vector<std::string> row_values;
+            split(line, '\t', row_values);
+            Region region;
+            region.chromosome = row_values[0];
+            region.start = std::stoi(row_values[1]);
+            region.end = std::stoi(row_values[2]);
+            training_regions.push_back(region);
+        }
+    }
 
     ReadDB read_db;
     read_db.load(opt::reads_file);
@@ -913,7 +972,7 @@ int methyltrain_main(int argc, char** argv)
 
     for(size_t round = 0; round < opt::num_training_rounds; round++) {
         fprintf(stderr, "Starting round %zu\n", round);
-        train_one_round(read_db, training_kit, mtrain_alphabet->get_name(), training_k, round);
+        train_one_round(read_db, training_kit, mtrain_alphabet->get_name(), training_k, round, training_regions);
         /*
         if(opt::write_models) {
             write_models(training_kit, mtrain_alphabet->get_name(), training_k, round);

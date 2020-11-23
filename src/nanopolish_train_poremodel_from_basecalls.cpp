@@ -172,6 +172,7 @@ PoreModel initialize_pore_model(const std::vector<KmerTrainingData>& read_traini
     return pore_model;
 }
 
+/*
 void alignment_to_training_data(const SquiggleRead* read,
                                 const std::vector<EventAlignment>& alignment,
                                 const size_t k,
@@ -200,7 +201,7 @@ void alignment_to_training_data(const SquiggleRead* read,
         }
     }
 }
-
+*/
 
 int train_poremodel_from_basecalls_main(int argc, char** argv)
 {
