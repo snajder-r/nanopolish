@@ -177,7 +177,6 @@ namespace opt
     static int progress = 0;
     static int num_threads = 1;
     static int batch_size = 512;
-    static int min_separation = 10;
     static int min_flank = 10;
     static int min_mapping_quality = 20;
 }
@@ -186,7 +185,7 @@ namespace opt
 
 static const char* shortopts = "r:b:g:t:w:m:K:q:c:i:vn";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_MIN_SEPARATION, OPT_WATCH_DIR, OPT_WATCH_WRITE_BAM };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_PROGRESS, OPT_MIN_FLANK, OPT_WATCH_DIR, OPT_WATCH_WRITE_BAM };
 
 static const struct option longopts[] = {
     { "verbose",              no_argument,       NULL, 'v' },
@@ -199,7 +198,7 @@ static const struct option longopts[] = {
     { "models-fofn",          required_argument, NULL, 'm' },
     { "watch-process-total",  required_argument, NULL, 'c' },
     { "watch-process-index",  required_argument, NULL, 'i' },
-    { "min-separation",       required_argument, NULL, OPT_MIN_SEPARATION },
+    { "min-flank",            required_argument, NULL, OPT_MIN_FLANK },
     { "watch",                required_argument, NULL, OPT_WATCH_DIR },
     { "watch-write-bam",      no_argument,       NULL, OPT_WATCH_WRITE_BAM },
     { "progress",             no_argument,       NULL, OPT_PROGRESS },
@@ -279,6 +278,7 @@ void calculate_methylation_for_read(const OutputHandles& handles,
         // Scan the sequence for motifs
         std::vector<int> motif_sites;
         assert(ref_seq.size() != 0);
+
         for(size_t i = opt::min_flank; i < ref_seq.size() - opt::min_flank; ++i) {
             //if(!mtest_alphabet->is_motif_match(ref_seq, i))
             //{
@@ -303,11 +303,11 @@ void calculate_methylation_for_read(const OutputHandles& handles,
                                                             e1,
                                                             e2);
 
-            double ratio = fabs(e2 - e1) / (calling_start - calling_end);
+            double ratio = fabs(e2 - e1) / (calling_end - calling_start);
 
             // Only process this region if the the read is aligned within the boundaries
             // and the span between the start/end is not unusually short
-            if(!bounded || abs(e2 - e1) <= 10 || ratio > MAX_EVENT_TO_BP_RATIO) {
+            if(!bounded || abs(e2 - e1) <= opt::min_flank || ratio > MAX_EVENT_TO_BP_RATIO) {
                 continue;
             }
 
@@ -747,7 +747,7 @@ void parse_call_accessibility_options(int argc, char** argv)
             case 'K': arg >> opt::batch_size; break;
             case 'c': arg >> opt::watch_process_total; break;
             case 'i': arg >> opt::watch_process_index; break;
-            case OPT_MIN_SEPARATION: arg >> opt::min_separation; break;
+            case OPT_MIN_FLANK: arg >> opt::min_flank; break;
             case OPT_WATCH_DIR: arg >> opt::watch_dir; break;
             case OPT_WATCH_WRITE_BAM: opt::watch_write_bam = true; break;
             case OPT_PROGRESS: opt::progress = true; break;
