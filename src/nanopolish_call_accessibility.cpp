@@ -279,6 +279,7 @@ void calculate_methylation_for_read(const OutputHandles& handles,
         // Scan the sequence for motifs
         std::vector<int> motif_sites;
         assert(ref_seq.size() != 0);
+
         for(size_t i = opt::min_flank; i < ref_seq.size() - opt::min_flank; ++i) {
             //if(!mtest_alphabet->is_motif_match(ref_seq, i))
             //{
@@ -303,7 +304,7 @@ void calculate_methylation_for_read(const OutputHandles& handles,
                                                             e1,
                                                             e2);
 
-            double ratio = fabs(e2 - e1) / (calling_start - calling_end);
+            double ratio = fabs(e2 - e1) / (calling_end - calling_start);
 
             // Only process this region if the the read is aligned within the boundaries
             // and the span between the start/end is not unusually short
