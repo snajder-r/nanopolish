@@ -3,15 +3,15 @@
 This is a fork of Nanopolish that implements the following additions:
 
 * Lifted the following restrictions:
-** Alphabets no longer have to rely on symmetric methylation patterns
-** Multiple different methylation markers:
-*** Z: methylated cytozine
-*** X: methylated A
-*** Q: T bound to a methylated A
+  * Alphabets no longer have to rely on symmetric methylation patterns
+  * Multiple different methylation markers:
+    * Z: methylated cytozine
+    * X: methylated A
+    * Q: T bound to a methylated A
 * Alphabets no longer use M, since it's an ambiguity letter - this allowed me to remove a somewhat hacky check on whether an M is a methylated base or an ambiguity code
 * Two alphabets:
-** NOME: This alphabet implements CpG, GpC and A methylation in any context
-** m5c: This alphabet simply implements combined CpG+GpC methylation.
+  * NOME: This alphabet implements CpG, GpC and A methylation in any context
+  * m5c: This alphabet simply implements combined CpG+GpC methylation.
 * New command: call-accessibility
 
 ## call-accessibility
