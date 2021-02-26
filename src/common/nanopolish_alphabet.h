@@ -245,6 +245,7 @@ class Alphabet
         {
             std::string out(str);
             RecognitionMask rmask = find_recognition_mask(str, false, false, false);
+
             size_t i = 0;
             while(i < out.length()){
                 // If this subsequence matched a recognition site,
@@ -420,6 +421,22 @@ struct MethylCpGAlphabet : public Alphabet
     }
 };
 
+struct M5CAlphabet : public Alphabet
+{
+    // member variables, expanded by macrocs
+    BASIC_MEMBER_BOILERPLATE
+    METHYLATION_MEMBER_BOILERPLATE
+
+    // member functions
+    BASIC_ACCESSOR_BOILERPLATE
+    METHYLATION_ACCESSOR_BOILERPLATE
+
+    // does this alphabet contain all of the nucleotides in bases?
+    virtual inline bool contains_all(const char *bases) const
+    {
+        return strspn(bases, _base) == strlen(bases);
+    }
+};
 
 struct NOMEAlphabet : public Alphabet
 {
@@ -505,6 +522,7 @@ extern MethylGpCAlphabet gMethylGpCAlphabet;
 extern MethylDamAlphabet gMethylDamAlphabet;
 extern MethylDcmAlphabet gMethylDcmAlphabet;
 extern UtoTRNAAlphabet gUtoTRNAAlphabet;
+extern M5CAlphabet gM5CAlphabet;
 extern NOMEAlphabet gNOMEAlphabet;
 
 std::vector<const Alphabet*> get_alphabet_list();

@@ -674,7 +674,7 @@ TrainingResult retrain_model_from_events(const PoreModel& current_model,
             // train a mixture model where a minority of k-mers aren't methylated
             ParamMixture mixture;
 
-            float incomplete_methylation_rate = 0.1f;
+            float incomplete_methylation_rate = 0.05f;
             std::string um_kmer = mtrain_alphabet->unmethylate(kmer);
             size_t um_ki = mtrain_alphabet->kmer_rank(um_kmer.c_str(), k);
 

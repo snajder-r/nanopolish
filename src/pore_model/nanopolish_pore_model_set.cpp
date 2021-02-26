@@ -48,7 +48,6 @@ std::vector<const PoreModel*> PoreModelSet::initialize(const std::string& fofn_f
 
         // read the model
         PoreModel p(model_filename);
-
         // add the model and push the new reference to it to the output
         const PoreModel* imported = model_set.register_model(p);
         out.push_back(imported);

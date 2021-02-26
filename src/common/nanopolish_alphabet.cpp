@@ -94,30 +94,60 @@ const char* MethylCpGAlphabet::_recognition_sites[] = { "CG" };
 const char* MethylCpGAlphabet::_recognition_sites_methylated[] = { "ZG" };
 const char* MethylCpGAlphabet::_recognition_sites_methylated_complement[] = { "GZ" };
 
+//
+// CpG and GpC methylation
+//
+const uint8_t M5CAlphabet::_rank[256] = {
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,1,0,0,0,2,0,0,0,0,0,0,0,0,
+        0,0,0,0,3,0,0,0,0,0,4,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+};
 
+const char* M5CAlphabet::_name = "m5c";
+const char* M5CAlphabet::_base = "ACGTZ";
+const char* M5CAlphabet::_complement = "TGCAG";
+const uint32_t M5CAlphabet::_size = 5;
+
+const uint32_t M5CAlphabet::_num_recognition_sites = 2;
+const uint32_t M5CAlphabet::_recognition_length[] = { 2, 2 };
+const char* M5CAlphabet::_recognition_sites[] = { "CG","GC"};
+const char* M5CAlphabet::_recognition_sites_methylated[] = { "ZG", "GZ"};
+const char* M5CAlphabet::_recognition_sites_methylated_complement[] = { "GZ", "ZG"};
 
 //
 // CpG, GpC and A methylation
 //
 const uint8_t NOMEAlphabet::_rank[256] = {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,1,0,0,0,2,0,0,0,0,0,0,0,0,
-    0,3,0,0,4,0,0,0,5,0,6,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,1,0,0,0,2,0,0,0,0,0,0,0,0,
+        0,3,0,0,4,0,0,0,5,0,6,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
-
 
 const char* NOMEAlphabet::_name = "nome";
 const char* NOMEAlphabet::_base = "ACGQTXZ";
@@ -151,11 +181,6 @@ const uint8_t MethylGpCAlphabet::_rank[256] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
-
-
-
-
-
 
 const char* MethylGpCAlphabet::_name = "gpc";
 const char* MethylGpCAlphabet::_base = "ACGTZ";
@@ -241,6 +266,7 @@ MethylGpCAlphabet gMethylGpCAlphabet;
 MethylDamAlphabet gMethylDamAlphabet;
 MethylDcmAlphabet gMethylDcmAlphabet;
 UtoTRNAAlphabet gUtoTRNAAlphabet;
+M5CAlphabet gM5CAlphabet;
 NOMEAlphabet gNOMEAlphabet;
 
 std::vector<const Alphabet*> get_alphabet_list()
@@ -251,6 +277,7 @@ std::vector<const Alphabet*> get_alphabet_list()
                                           &gMethylDamAlphabet,
                                           &gMethylDcmAlphabet,
                                           &gUtoTRNAAlphabet,
+                                          &gM5CAlphabet,
                                           &gNOMEAlphabet };
     return list;
 }
