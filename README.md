@@ -1,3 +1,63 @@
+# Nanopolish accessibility calls
+
+This is a fork of Nanopolish that implements the following additions:
+
+* Lifted the following restrictions:
+** Alphabets no longer have to rely on symmetric methylation patterns
+** Multiple different methylation markers:
+*** Z: methylated cytozine
+*** X: methylated A
+*** Q: T bound to a methylated A
+* Alphabets no longer use M, since it's an ambiguity letter - this allowed me to remove a somewhat hacky check on whether an M is a methylated base or an ambiguity code
+* Two alphabets:
+** NOME: This alphabet implements CpG, GpC and A methylation in any context
+** m5c: This alphabet simply implements combined CpG+GpC methylation.
+* New command: call-accessibility
+
+## call-accessibility
+
+Like call-methylation this performs methylation calling. However, it doesn't just look for a methylation pattern, but rather runs in a windowed form across the entire alignment. The output is then encoded as an ASCII string.
+
+*How to call:*
+
+```
+nanopolish call-accessibility -t <num_threads> --reads <indexed_fastq_file> -m <model_fof> --bam <bam_file> --genome <reference_fasta> --methylation 5mC > <outfile.tsv>
+```
+
+Here, the model_fof is a text file containing the path to the trained model.
+
+At the moment, this repository contains the following trained model for accessibility calling: https://github.com/snajder-r/nanopolish/blob/master/etc/r9-models/r9.4_450bps.m5c.6mer.template.model
+
+This model is trained for the m5c alphabet.
+
+*Output:*
+
+The output will look something like this:
+```
+2L  -   121020  121285  4ea4a1f1-24f6-41b8-af7c-3618a283e72d    OOOOOOOOOOOOOOOO6666666166OOY________cgigicO>>>>>>>>>>>>>46>OD>OOOOO>O>4O>D44:>,c)))).,.()+.!++,,+,./.!//1.1464446:446>DDDDDiOOOOOOODDD>>1.+,).,,:./16,,4DD>:D!::::641///////41!4OOOO________O_cDDOO_OOOO>>>>>>>>::6:>>>OOOOO___ggcgiiiiigig_YlOD:66666666::DDcOOOOOOOOOO
+```
+
+The first 5 columns are the same as in the regular nanopolish methylation calling format. The final column is the ASCII encoded accessibility prediction. Each character represents one base in the alignment (but takes into account the signal from a window around it). Each character represents a log-likelihood ratio.
+To compute the log-likelihood ration you calculate: 
+
+```
+x = ascii(c) - 79
+LLR = (e^(|x| / 15.0) - 1) * sig(x)
+```
+
+Assuming that "ascii" is the function that maps ascii characters to their respective ASCII codes. A python implementation reading the string might look like this:
+
+```
+def parse_llrs_string(llrs_string):
+    llrs = np.array([x for x in llrs_string.encode("ascii")], dtype=float)
+    # maps range [33,125] to the range [-20, 20]
+    llrs = llrs - 79
+    llrs = (np.exp(np.abs(llrs) / 15.0) - 1) * np.sign(llrs)
+    return llrs
+```
+
+Note, that this means that the character "O" in the string represents a log-likelihood ratio of 0, which means no call could be made at that position (e.g. at the edges of the alignment, or if no A, CpG, or GpC was in the window).
+
 # Nanopolish
 
 [![Build Status](https://travis-ci.org/jts/nanopolish.svg?branch=master)](https://travis-ci.org/jts/nanopolish)
