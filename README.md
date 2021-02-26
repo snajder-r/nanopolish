@@ -18,7 +18,7 @@ This is a fork of Nanopolish that implements the following additions:
 
 Like call-methylation this performs methylation calling. However, it doesn't just look for a methylation pattern, but rather runs in a windowed form across the entire alignment. The output is then encoded as an ASCII string.
 
-*How to call:*
+**How to call:**
 
 ```
 nanopolish call-accessibility -t <num_threads> --reads <indexed_fastq_file> -m <model_fof> --bam <bam_file> --genome <reference_fasta> --methylation 5mC > <outfile.tsv>
@@ -30,7 +30,7 @@ At the moment, this repository contains the following trained model for accessib
 
 This model is trained for the m5c alphabet.
 
-*Output:*
+**Output:**
 
 The output will look something like this:
 ```
